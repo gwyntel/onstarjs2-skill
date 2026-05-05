@@ -27,9 +27,14 @@ prerequisites:
 
 Control GM vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial OnStar API through the `onstarjs2` npm package.
 
-**Repo:** <https://github.com/BigThunderSR/OnStarJS>
-**npm:** <https://www.npmjs.com/package/onstarjs2>
+**Skill Repo (clone this):** <https://github.com/gwyntel/onstarjs2-skill>
+**Upstream npm:** <https://www.npmjs.com/package/onstarjs2>
+**Upstream Source:** <https://github.com/BigThunderSR/OnStarJS>
 **API Base:** `https://na-mobile-api.gm.com`
+
+> **Self-contained skill:** Clone the skill repo, `npm install`, configure `.env`, and go.
+> Do NOT fork the upstream OnStarJS repo — this skill wraps the npm package as-is
+> with a test harness, Linux GPU patch, and command scripts.
 
 ## ⚠️ Critical Requirements
 
