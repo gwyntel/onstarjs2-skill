@@ -17,6 +17,11 @@ prerequisites:
     - ONSTAR_PASSWORD
     - ONSTAR_PIN (4-digit OnStar PIN)
     - ONSTAR_TOTPKEY (TOTP secret from GM "Third-Party Authenticator App" setup)
+  pii_warning: |
+    ⚠️ NEVER commit PII (VINs, emails, passwords, PINs, TOTP keys, account numbers,
+    GPS coordinates, device IDs, vehicle nicknames) to any tracked file. All credentials
+    must live in .env only (which is git-ignored). If PII is found in tracked files,
+    remove immediately and rewrite git history with git filter-branch.
   note: |
     TOTP setup: Change GM account MFA to "Third-Party Authenticator App" (desktop browser only).
     Capture the TOTP key from the QR code setup link or use an app like Stratum/Bitwarden that shows the key.
