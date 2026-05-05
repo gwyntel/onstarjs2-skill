@@ -1,0 +1,32 @@
+{
+  "name": "onstarjs2-skill",
+  "version": "1.0.0",
+  "description": "OnStarJS2 vehicle control harness — control GM/OnStar vehicles via the unofficial API",
+  "main": "test.mjs",
+  "scripts": {
+    "postinstall": "bash scripts/patch-linux-gpu.sh",
+    "vehicles": "node test.mjs vehicles",
+    "diagnostics": "node test.mjs diagnostics",
+    "location": "node test.mjs location",
+    "ev-metrics": "node test.mjs ev-metrics",
+    "ev-refresh": "node test.mjs ev-refresh",
+    "start": "node test.mjs start",
+    "cancel-start": "node test.mjs cancel-start",
+    "lock": "node test.mjs lock",
+    "unlock": "node test.mjs unlock",
+    "alert": "node test.mjs alert",
+    "flash": "node test.mjs flash",
+    "honk": "node test.mjs honk",
+    "plan": "node test.mjs plan",
+    "recall": "node test.mjs recall",
+    "warranty": "node test.mjs warranty",
+    "sxm": "node test.mjs sxm"
+  },
+  "keywords": ["onstar", "gm", "vehicle", "ev", "bolt", "chevrolet"],
+  "author": "GwynTel",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "onstarjs2": "^2.16.3"
+  }
+}
