@@ -53,9 +53,25 @@ All commands via `npm run <command>` or `node test.mjs <command>`:
 | `flash` | Flash lights only |
 | `honk` | Honk horn only |
 
-## Current Vehicle
+## ⚠️ PII Policy
 
-- OnStar Status: ACTIVE
+**Never commit personally identifiable information to this repo or any skill.**
+
+The following must ONLY live in `.env` (which is git-ignored):
+
+| PII Type | Examples | Where it goes |
+|----------|----------|---------------|
+| VINs | `1G2ZF58B774109863` | `.env` → `VIN` |
+| Device IDs | UUIDs | `.env` → `DEVICEID` |
+| Account emails | `user@example.com` | `.env` → `ONSTAR_USERNAME` |
+| Passwords | Any | `.env` → `ONSTAR_PASSWORD` |
+| PINs | 4-digit numbers | `.env` → `ONSTAR_PIN` |
+| TOTP keys | 16-char base32 | `.env` → `ONSTAR_TOTPKEY` |
+| Account numbers | GM account #s | `.env` (or nowhere) |
+| GPS coordinates | Lat/lng | Never in repo |
+| Vehicle nicknames | Identifying names | `.env` (or nowhere) |
+
+**If you find PII in any tracked file, remove it immediately and audit git history.**
 
 ## Architecture
 
