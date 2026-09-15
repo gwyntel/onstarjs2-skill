@@ -1,7 +1,7 @@
 ---
 name: onstarjs2
 description: Control GM/OnStar vehicles via the OnStarJS2 npm library (BigThunderSR/OnStarJS). Authenticate with TOTP, execute vehicle commands, query diagnostics, manage EV charging, and retrieve vehicle/account data.
-version: 1.0.0
+version: 1.1.0
 author: Claire
 license: MIT
 metadata:
@@ -240,6 +240,99 @@ The `options` block in the output contains all `ONSTAR_*` env vars. The addon sl
 
 See `references/deployment-missbolt.md` for the live deployment details (VIN, credentials, MQTT topics).
 
+## MQTT Shortcut Path (when onstar2mqtt HA add-on is running)
+
+If the onstar2mqtt Home Assistant add-on is already deployed, you can send commands via MQTT **without installing or configuring the npm package at all**. This is dramatically faster for quick one-off commands like lock/unlock/start.
+
+### Prerequisites
+
+- MQTT broker accessible from Hermes (the HA add-on publishes/subscribees to it)
+- `paho-mqtt` Python package installed
+- Broker credentials from the add-on config (see deployment reference)
+
+### Command Pattern
+
+```python
+import paho.mqtt.client as mqtt
+import json
+import time
+
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+client.username_pw_set('<mqtt_user>', '<mqtt_password>')
+client.connect('<mqtt_broker_host>', 1883, 60)
+client.loop_start()
+
+topic = 'homeassistant/<VIN>/command'
+payload = json.dumps({'command': '<commandName>'})
+result = client.publish(topic, payload, qos=1)
+result.wait_for_publish(timeout=10)
+print(f'Published <commandName> — RC: {result.rc}')
+
+time.sleep(1)
+client.loop_stop()
+client.disconnect()
+```
+
+### Supported Commands via MQTT
+
+`lockDoor`, `unlockDoor`, `start`, `cancelStart`, `alert`, `cancelAlert`, `flashLights`, `stopLights`, `diagnostics`, `location`, `getEVChargingMetrics`, `setChargeLevelTarget` (options: 1-100), `stopCharging`
+
+### Scheduling Timed Commands
+
+Use the Hermes cronjob tool to schedule MQTT commands at a specific time (e.g., "unlock the car at 1:58 PM"). The cronjob prompt should contain the full Python script inline so the scheduled agent can execute it without loading context.
+
+### HA Button Entity Path (simplest of all)
+
+When the onstar2mqtt HA add-on is running, it creates HA **button entities** for every vehicle action command. Pressing these buttons via the HA API is the simplest way to issue a command — no MQTT scripting, no npm install, no Python dependencies.
+
+**Entity naming pattern:** `button.{year}_{make}_{model}_command_{commandName}`
+
+Example entities for a 2019 Chevrolet Bolt EV:
+- `button.2019_chevrolet_bolt_ev_command_lockdoor`
+- `button.2019_chevrolet_bolt_ev_command_unlockdoor`
+- `button.2019_chevrolet_bolt_ev_command_start`
+- `button.2019_chevrolet_bolt_ev_command_cancelstart`
+- `button.2019_chevrolet_bolt_ev_command_setchargeleveltarget`
+- `button.2019_chevrolet_bolt_ev_command_stopcharging`
+- `button.2019_chevrolet_bolt_ev_command_getvehicledetails`
+- `button.2019_chevrolet_bolt_ev_command_getevchargingmetrics`
+- `button.2019_chevrolet_bolt_ev_command_refreshevchargingmetrics`
+
+**How to press a button (via Hermes ha_call_service tool):**
+```
+ha_call_service(domain="button", service="press", entity_id="button.2019_chevrolet_bolt_ev_command_start")
+```
+
+**How to press a button (via HA REST API):**
+```bash
+curl -X POST "https://HA_URL/api/services/button/press" \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_id": "button.2019_chevrolet_bolt_ev_command_start"}'
+```
+
+**How to press a button (via cronjob for scheduling):**
+Create a one-shot cronjob with `enabled_toolsets: ["homeassistant"]` and prompt:
+```
+Press the remote start button. Call ha_call_service with domain="button", service="press", entity_id="button.2019_chevrolet_bolt_ev_command_start".
+```
+
+**Discovering available button entities:**
+```
+GET /api/states → filter for entity_id containing "command" + vehicle model prefix
+```
+
+### When to Use HA Buttons vs MQTT vs npm
+
+| Scenario | Use |
+|----------|-----|
+| Quick command (lock/unlock/start) with HA add-on running | **HA Buttons** — zero dependencies, works from Hermes directly |
+| Scheduling timed commands | **HA Buttons + cronjob** — simplest inline prompt |
+| Scripting multiple commands in sequence | **MQTT** — programmatic control, no per-call overhead |
+| Querying diagnostics or location data | **npm** — structured response parsing |
+| EV charging management | **npm** — complex API interactions |
+| No HA add-on deployed | **npm** — only option |
+
 ## Common Patterns
 
 ### Quick Vehicle Status Check
@@ -269,6 +362,15 @@ await onStar.unlockDoor({ delay: 0 });
 
 ## Pitfalls
 
+- **GM "Access Denied" auth block (post-Jul 2026)** — GM's Entra ID (`custlogin.gm.com`) now returns `[ACCESS DENIED]` on the `/B2C_1A_SEAMLESS_MOBILE_SignUpOrSignIn/SelfAsserted` endpoint for automated Patchright/Chromium sign-ins. The add-on log shows `🚫 Access Denied: GM's auth server blocked this sign-in attempt. Retrying immediately makes this worse.` **Every retry deepens the block — do NOT start the add-on in a loop.** Recovery is hours-long waiting or manual auth via the Firefox extension (https://github.com/metheos/onstar_firefox).
+- **Diagnosing a dead OnStar add-on from outside HA** — `ha apps logs` returns EMPTY for a stopped add-on (no crash trail survives). Workflow:
+  1. `ha apps list | grep -A12 -i onstar` → check `state:` (slug pattern `020296af_onstar2mqtt_bigthundersr_vehicle<N>`)
+  2. `ha apps info <slug> | sed -n '/^options:/,/^schema:/p'` → reads all `ONSTAR_*`/`MQTT_*` creds (works from the Hermes SSH key on the HA host, no Supervisor token needed)
+  3. `ha apps start <slug>` (ONE attempt only), `sleep 45`, `ha apps logs <slug> | tail -80` → the auth failure prints here
+  4. Check entity fallout: `GET /api/states` filtered on the vehicle prefix — all `button.*_command_*` / sensors read `unavailable` with `last_changed` frozen at the failure time
+- **A scheduled-start automation keeps firing while the vehicle integration is dead** — `automation.*` reports `state: on` and `last_triggered` updates on schedule, but the `button.press` action silently no-ops on an `unavailable` entity. `last_triggered` is NOT evidence the car started; verify the actual button/sensor entities and the add-on state.
+- **HA log location** — on HAOS the current log is NOT at `/config/home-assistant.log` (moved in 2024.x). Use the HA UI Logs page, `ha core logs`, or `/config/home-assistant.log.1` for the rotated prior file.
+- **Stale token files are renamed `.old`** — OnStarJS2 rotates `microsoft_tokens.json` / `gm_tokens.json` at `TOKEN_LOCATION`, keeping the previous pair as `*.json.old`. If ONLY `.old` files exist, the live tokens are gone and browser re-auth is required. Decode `expires_at` in the `.old` file to date the last successful auth.
 - **TOTP key must be captured during initial GM MFA setup** — cannot be retrieved later unless using an authenticator app that shows keys
 - **"Third-Party Authenticator App" option only appears on desktop browser** — not visible on mobile
 - **Token auth requires valid system time** — even small clock skew causes silent failures
@@ -279,4 +381,30 @@ await onStar.unlockDoor({ delay: 0 });
 - **429 rate limiting** — GM's API rate limits aggressively; respect the backoff config
 - **Browser automation** — auth uses headless Chromium; needs xvfb on Linux, may fail in constrained environments
 - **Linux GPU crash** — on Linux (containers/VMs without GPU), Chromium crashes with "Target page, context or browser has been closed" during auth. Fix: patch `node_modules/onstarjs2/dist/index.mjs` to add `--disable-gpu` and `--disable-software-rasterizer` alongside the existing `--use-gl=swiftshader` line (around line 1374). No vulkan ICD is needed after this fix
+- **paho-mqtt install on managed Python** — `pip install paho-mqtt` fails with PEP 668 error on system-managed Python. Use `pip install --break-system-packages paho-mqtt` to override. The Hermes agent runs under uv's managed Python at `~/.hermes/hermes-agent/.venv/`, so the package installs there correctly
+- **HA Supervisor API returns 401 with standard HASS_TOKEN** — The `/api/hassio/*` endpoints require Supervisor authentication (separate from the long-lived access token). You cannot read add-on configs this way from an external agent. Use `/api/states` instead to discover entities, or use the HA button entity path to issue commands without needing add-on config at all
 - **Token reuse** — after first successful auth, tokens are saved to `microsoft_tokens.json` and `gm_tokens.json` at `TOKEN_LOCATION`. Subsequent calls reuse tokens without browser re-auth until they expire
+
+## Human-Assisted VNC Recovery — PROVEN PLAYBOOK (Sep 2026)
+
+When GM's WAF blocks headless auth (silent 403 on `/SelfAsserted`, no error UI — detect via `performance.getEntriesByType('resource')` filtering `responseStatus===403`), a **human-assisted VNC login** through the camofox anti-detect browser succeeds. Proven end-to-end Sep 15 2026: blocked all morning headless, human clicked Log In once over VNC → full token set in under a minute.
+
+**Architecture** (3 pieces on camofox CT):
+1. **onstar_firefox extension** (github.com/metheos/onstar_firefox) installed in camoufox via the `addons:` array in `launchOptions()` — needs three patches for agent-drivability:
+   - `background.js`: `saveAs: true` → `saveAs: false` (kills native Save-As dialog)
+   - `background.js`: `startAuthFlow` navigates the invoking tab (`browser.tabs.update(sender.tab.id)`) instead of `tabs.create()` so the agent-tracked tab follows the flow
+   - `background.js`: webRequest listener additionally POSTs the captured `msauth.com.gm.mychevrolet://` redirect URL to a local capture listener (`http://localhost:9999/capture`) — this is what hands the OAuth code to the agent without any popup
+2. **Capture listener** — tiny Python http.server on CT :9999 writing each POST body to `/tmp/gm_capture_latest.txt`
+3. **VNC** — camofox `ENABLE_VNC=1` + `VNC_PASSWORD` env (systemd drop-in); x11vnc + noVNC auto-attach to camoufox's Xvfb display. Access via `https://camofox.<tailnet>.ts.net/novnc/vnc.html` or raw VNC `<ct-ip>:5900`
+
+**Flow, step by step:**
+1. Agent generates PKCE pair (stdlib: `secrets.token_bytes(32)` → base64url verifier, SHA-256 → challenge) + state, and builds the authorization URL from the discovery doc with `client_id 3ff30506-d242-4bed-835b-422bf992622e`, `redirect_uri msauth.com.gm.mychevrolet://auth`, `scope https://gmb2cprod.onmicrosoft.com/<client_id>/Test.Read openid profile offline_access`, `bundleID com.gm.myChevrolet`, `brand chevrolet`
+2. Agent navigates its tracked tab to the auth URL, fills email via real typing, clicks Continue, focuses the password field
+3. **Human takes over over VNC**: types password, clicks Log In. GM's WAF accepts the human-speed real-browser interaction that it 403s when driven programmatically
+4. Extension's webRequest listener catches the 302 to the custom scheme, forwards the full redirect URL to the capture listener
+5. Agent reads `/tmp/gm_capture_latest.txt`, extracts `code`, verifies `state` matches, and does the token exchange from the camofox CT (same egress): POST `{grant_type: authorization_code, client_id, redirect_uri, code, code_verifier}` to the discovery doc's `token_endpoint`
+6. Full token set (`access_token`/`refresh_token`/`id_token`) lands as JSON — install into the HA add-on's `TOKEN_LOCATION` (onstar2mqtt default `/ssl/vehicle1/`: write `microsoft_tokens.json` + `gm_tokens.json`, then `ha apps restart <slug>`), or hand to onstarjs2 directly
+
+**Why it works:** GM's bot detection fingerprints request *dynamics* (timing, event cadence, CDP artifacts). Real human input over VNC on a camoufox (anti-detect Firefox) session has none of the tells. The OAuth code itself is captured by the extension's own listener, so nothing about the exchange is fingerprinted — the only human moment is the single login click.
+
+**Scaling note for agent fleets:** the whole apparatus (PKCE gen, auth URL build, capture listener, token install) is agent-side except the ONE human click. Store the verifier/state in a temp file keyed to the capture so a later session can pick up the exchange if the browser restarts mid-flow.
