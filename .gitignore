@@ -4,3 +4,6 @@ node_modules/
 temp-browser-profile/
 microsoft_tokens.json
 gm_tokens.json
+
+# Private deployment reference — contains real VIN, credentials, TOTP secret, LAN addresses. NEVER publish.
+references/deployment-missbolt.md
