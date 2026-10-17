@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gwyntel/onstarjs2-skill)
+
 # OnStarJS2 Skill
 
 Control GM/OnStar vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial OnStar API through the [onstarjs2](https://github.com/BigThunderSR/OnStarJS) npm package.
