@@ -32,6 +32,8 @@ prerequisites:
 
 Control GM vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial OnStar API through the `onstarjs2` npm package.
 
+This skill targets GM/OnStar vehicles and the `onstarjs2` npm package; the executing agent may be Hermes, Claude Code, Codex, or another agent. Hermes-only conveniences (HA tools, cron tools, paths) are optional adapters, not product requirements. Obtain explicit authorization before any vehicle action (start, lock/unlock, horn/lights, charging changes) or before transmitting vehicle location/diagnostics. Prefer read-only queries when demonstrating setup; never run real vehicle commands as a test.
+
 **Skill Repo (clone this):** <https://github.com/gwyntel/onstarjs2-skill>
 **Upstream npm:** <https://www.npmjs.com/package/onstarjs2>
 **Upstream Source:** <https://github.com/BigThunderSR/OnStarJS>
@@ -221,24 +223,15 @@ pnpm setup:interactive         # Interactive credential manager
 - **Node-RED** — Node-RED integration (<https://github.com/BigThunderSR/node-red-contrib-onstar2>)
 - **PyOnStar** — Python port (<https://github.com/leboff/pyonstar>)
 
-### Retrieving OnStar Credentials from HA Add-on
+### Retrieving OnStar Credentials from an HA Add-on (optional, sensitive)
 
-If the user has onstar2mqtt running as an HA add-on, the credentials (including TOTP key) are accessible via the HA Supervisor CLI:
+If the operator already runs onstar2mqtt as an HA add-on, its configuration may be inspectable through the HA Supervisor CLI from an authorized HA terminal (not from an arbitrary agent host):
 
 ```bash
-# From HA SSH terminal (not Hermes SSH — must be inside HA OS)
-ha addons info <addon_slug>
+ha addons info <operator_configured_addon_slug>
 ```
 
-The `options` block in the output contains all `ONSTAR_*` env vars. The addon slug follows the pattern `020296af_onstar2mqtt_bigthundersr_vehicle<N>`.
-
-**What does NOT work for reading add-on config:**
-- `docker inspect` — blocked by HA SSH Protection Mode
-- `curl http://hassio/addons/<slug>` — 401 without Supervisor token
-- Searching `/data/` for auth tokens or options.json — Supervisor stores config internally
-- Reading `/homeassistant/.storage/refresh_tokens` for Supervisor auth — no direct path
-
-See `references/deployment-missbolt.md` for the live deployment details (VIN, credentials, MQTT topics).
+Treat any returned options as secrets; do not copy them to chat, logs, or tracked files. Availability and access restrictions depend on the HA installation. Do not assume a particular add-on slug, host path, or private deployment reference. Configure `.env` locally as described above instead.
 
 ## MQTT Shortcut Path (when onstar2mqtt HA add-on is running)
 
@@ -246,11 +239,13 @@ If the onstar2mqtt Home Assistant add-on is already deployed, you can send comma
 
 ### Prerequisites
 
-- MQTT broker accessible from Hermes (the HA add-on publishes/subscribees to it)
+- MQTT broker accessible to the agent host (if configured; the HA add-on publishes/subscribes to it)
 - `paho-mqtt` Python package installed
-- Broker credentials from the add-on config (see deployment reference)
+- Broker credentials configured privately by the operator; do not assume a deployment reference or retrieve/print secrets
 
 ### Command Pattern
+
+Use only operator-configured broker address, credentials, and discovered vehicle topic (substitute placeholders below; never publish secrets). Obtain explicit user approval before publishing any action command.
 
 ```python
 import paho.mqtt.client as mqtt
@@ -279,28 +274,19 @@ client.disconnect()
 
 ### Scheduling Timed Commands
 
-Use the Hermes cronjob tool to schedule MQTT commands at a specific time (e.g., "unlock the car at 1:58 PM"). The cronjob prompt should contain the full Python script inline so the scheduled agent can execute it without loading context.
+Use your agent's native scheduler or an HA automation if available. Configure an appropriately scoped HA capability and ensure the scheduled instruction uses operator-configured broker details and a verified topic. Do not assume Hermes cron tools exist on other agents. Every scheduled vehicle action requires explicit user authorization.
 
 ### HA Button Entity Path (simplest of all)
 
 When the onstar2mqtt HA add-on is running, it creates HA **button entities** for every vehicle action command. Pressing these buttons via the HA API is the simplest way to issue a command — no MQTT scripting, no npm install, no Python dependencies.
 
-**Entity naming pattern:** `button.{year}_{make}_{model}_command_{commandName}`
+**Entity naming pattern:** `button.{year}_{make}_{model}_command_{commandName}` (verify on the target instance; exact IDs vary by vehicle/integration version). Do not assume the illustrative IDs from another installation.
 
-Example entities for a 2019 Chevrolet Bolt EV:
-- `button.2019_chevrolet_bolt_ev_command_lockdoor`
-- `button.2019_chevrolet_bolt_ev_command_unlockdoor`
-- `button.2019_chevrolet_bolt_ev_command_start`
-- `button.2019_chevrolet_bolt_ev_command_cancelstart`
-- `button.2019_chevrolet_bolt_ev_command_setchargeleveltarget`
-- `button.2019_chevrolet_bolt_ev_command_stopcharging`
-- `button.2019_chevrolet_bolt_ev_command_getvehicledetails`
-- `button.2019_chevrolet_bolt_ev_command_getevchargingmetrics`
-- `button.2019_chevrolet_bolt_ev_command_refreshevchargingmetrics`
+**How to press a button (Home Assistant tool/API):**
+Use the executing agent's native Home Assistant capability if available, or the HA REST API. `ha_call_service` is a Hermes-specific example, not a required tool. Discover the actual entity ID on the target HA instance; the example below is illustrative only.
 
-**How to press a button (via Hermes ha_call_service tool):**
-```
-ha_call_service(domain="button", service="press", entity_id="button.2019_chevrolet_bolt_ev_command_start")
+```text
+Domain: button; service: press; entity_id: <verified vehicle command button>
 ```
 
 **How to press a button (via HA REST API):**
@@ -311,11 +297,7 @@ curl -X POST "https://HA_URL/api/services/button/press" \
   -d '{"entity_id": "button.2019_chevrolet_bolt_ev_command_start"}'
 ```
 
-**How to press a button (via cronjob for scheduling):**
-Create a one-shot cronjob with `enabled_toolsets: ["homeassistant"]` and prompt:
-```
-Press the remote start button. Call ha_call_service with domain="button", service="press", entity_id="button.2019_chevrolet_bolt_ev_command_start".
-```
+**Scheduling timed commands:** Use your agent's native scheduler or an HA automation if available. Configure an appropriately scoped HA capability, and ensure the scheduled instruction discovers/uses a verified entity ID. Do not assume Hermes cronjob names or toolsets exist on other agents. A scheduled vehicle action still requires explicit user authorization.
 
 **Discovering available button entities:**
 ```
@@ -381,7 +363,7 @@ await onStar.unlockDoor({ delay: 0 });
 - **429 rate limiting** — GM's API rate limits aggressively; respect the backoff config
 - **Browser automation** — auth uses headless Chromium; needs xvfb on Linux, may fail in constrained environments
 - **Linux GPU crash** — on Linux (containers/VMs without GPU), Chromium crashes with "Target page, context or browser has been closed" during auth. Fix: patch `node_modules/onstarjs2/dist/index.mjs` to add `--disable-gpu` and `--disable-software-rasterizer` alongside the existing `--use-gl=swiftshader` line (around line 1374). No vulkan ICD is needed after this fix
-- **paho-mqtt install on managed Python** — `pip install paho-mqtt` fails with PEP 668 error on system-managed Python. Use `pip install --break-system-packages paho-mqtt` to override. The Hermes agent runs under uv's managed Python at `~/.hermes/hermes-agent/.venv/`, so the package installs there correctly
+- **paho-mqtt install on managed Python** — `pip install paho-mqtt` may fail with PEP 668 on system-managed Python. Use a project virtual environment (`python3 -m venv .venv`, activate it, then `python -m pip install paho-mqtt`) rather than modifying the agent's managed Python environment.
 - **HA Supervisor API returns 401 with standard HASS_TOKEN** — The `/api/hassio/*` endpoints require Supervisor authentication (separate from the long-lived access token). You cannot read add-on configs this way from an external agent. Use `/api/states` instead to discover entities, or use the HA button entity path to issue commands without needing add-on config at all
 - **Token reuse** — after first successful auth, tokens are saved to `microsoft_tokens.json` and `gm_tokens.json` at `TOKEN_LOCATION`. Subsequent calls reuse tokens without browser re-auth until they expire
 
