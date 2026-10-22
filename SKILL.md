@@ -2,7 +2,7 @@
 name: onstarjs2
 description: Control GM/OnStar vehicles via the OnStarJS2 npm library (BigThunderSR/OnStarJS). Authenticate with TOTP, execute vehicle commands, query diagnostics, manage EV charging, and retrieve vehicle/account data.
 version: 1.1.0
-author: Claire
+author: gwyntel
 license: MIT
 metadata:
   hermes:

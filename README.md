@@ -4,6 +4,36 @@
 
 Control GM/OnStar vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial OnStar API through the [onstarjs2](https://github.com/BigThunderSR/OnStarJS) npm package.
 
+## Install as an agent skill
+
+This repository contains an Agent Skill at the repository root (`SKILL.md`). Install it into Hermes Agent with the Vercel Skills CLI:
+
+```bash
+npx skills add gwyntel/onstarjs2-skill --skill onstarjs2 --agent hermes-agent -g -y
+```
+
+To install for a different supported agent, replace `hermes-agent` with that agent's CLI name. This only installs the instructions; it does **not** configure OnStar credentials or authorize vehicle actions.
+
+## Use
+
+Ask the agent to load `onstarjs2` for OnStarJS2 setup, diagnostics, or commands. Read-only commands and vehicle actions are distinct; review the requested command carefully. Commands such as remote start, lock/unlock, alert, and charging control affect the vehicle. Keep credentials in the ignored `.env` file only, never in prompts or tracked files.
+
+## Update the skill
+
+For GitHub-source installs tracked by the Vercel Skills CLI:
+
+```bash
+npx skills update onstarjs2 -g -y
+```
+
+If the CLI cannot find the install record, reinstall from the repository with the `npx skills add` command above. To update a local clone installation, pull the repository changes and reinstall from that path.
+
+## Troubleshooting
+
+- If the CLI does not find the skill, ensure the repository root contains `SKILL.md` with valid YAML `name: onstarjs2` and a one-line `description`.
+- If it does not appear in the agent, verify the selected `--agent` and installation path for that agent; for permission errors, ensure the target skill directory is writable.
+- Skill installation does not install this project's npm dependencies or configure credentials. Follow the separate project setup below.
+
 ## Setup
 
 ```bash
