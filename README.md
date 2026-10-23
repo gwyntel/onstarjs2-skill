@@ -8,7 +8,7 @@ Control GM/OnStar vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial 
 
 ## Install as an agent skill
 
-Prerequisite: Node.js 22.20 or later.
+Prerequisite: Node.js 22.20 or later (required by the Vercel Skills CLI).
 
 This repository contains an Agent Skill at the repository root (`SKILL.md`). Install it into Hermes Agent with the Vercel Skills CLI:
 
@@ -16,7 +16,7 @@ This repository contains an Agent Skill at the repository root (`SKILL.md`). Ins
 npx skills add gwyntel/onstarjs2-skill --skill onstarjs2 --agent hermes-agent -g -y
 ```
 
-To install for a different supported agent, replace `hermes-agent` with that agent's CLI name. This only installs the instructions; it does **not** configure OnStar credentials or authorize vehicle actions.
+To install for a different supported agent, replace `hermes-agent` with that agent's identifier. This only installs the instructions; it does **not** configure OnStar credentials or authorize vehicle actions.
 
 ## Use
 
@@ -30,7 +30,7 @@ For GitHub-source installs tracked by the Vercel Skills CLI:
 npx skills update onstarjs2 -g -y
 ```
 
-If the CLI cannot find the install record, reinstall from the repository with the `npx skills add` command above. To update a local clone installation, pull the repository changes and reinstall from that path.
+If the CLI cannot find the install record, reinstall from the repository with the `npx skills add` command above. To update a local clone, pull its changes and reinstall from the clone path, for example `npx skills add /path/to/onstarjs2-skill --skill onstarjs2 --agent hermes-agent -g -y`.
 
 ## Troubleshooting
 
