@@ -294,7 +294,7 @@ Domain: button; service: press; entity_id: <verified vehicle command button>
 curl -X POST "https://HA_URL/api/services/button/press" \
   -H "Authorization: Bearer $HASS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"entity_id": "button.2019_chevrolet_bolt_ev_command_start"}'
+  -d '{"entity_id": "<verified vehicle command button>"}'
 ```
 
 **Scheduling timed commands:** Use your agent's native scheduler or an HA automation if available. Configure an appropriately scoped HA capability, and ensure the scheduled instruction discovers/uses a verified entity ID. Do not assume Hermes cronjob names or toolsets exist on other agents. A scheduled vehicle action still requires explicit user authorization.
@@ -346,7 +346,7 @@ await onStar.unlockDoor({ delay: 0 });
 
 - **GM "Access Denied" auth block (post-Jul 2026)** — GM's Entra ID (`custlogin.gm.com`) now returns `[ACCESS DENIED]` on the `/B2C_1A_SEAMLESS_MOBILE_SignUpOrSignIn/SelfAsserted` endpoint for automated Patchright/Chromium sign-ins. The add-on log shows `🚫 Access Denied: GM's auth server blocked this sign-in attempt. Retrying immediately makes this worse.` **Every retry deepens the block — do NOT start the add-on in a loop.** Recovery is hours-long waiting or manual auth via the Firefox extension (https://github.com/metheos/onstar_firefox).
 - **Diagnosing a dead OnStar add-on from outside HA** — `ha apps logs` returns EMPTY for a stopped add-on (no crash trail survives). Workflow:
-  1. `ha apps list | grep -A12 -i onstar` → check `state:` (slug pattern `020296af_onstar2mqtt_bigthundersr_vehicle<N>`)
+  1. `ha apps list | grep -A12 -i onstar` → check `state:`
   2. `ha apps info <slug> | sed -n '/^options:/,/^schema:/p'` → reads all `ONSTAR_*`/`MQTT_*` creds (works from the Hermes SSH key on the HA host, no Supervisor token needed)
   3. `ha apps start <slug>` (ONE attempt only), `sleep 45`, `ha apps logs <slug> | tail -80` → the auth failure prints here
   4. Check entity fallout: `GET /api/states` filtered on the vehicle prefix — all `button.*_command_*` / sensors read `unavailable` with `last_changed` frozen at the failure time
