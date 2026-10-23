@@ -4,7 +4,11 @@
 
 Control GM/OnStar vehicles (Chevrolet, GMC, Buick, Cadillac) via the unofficial OnStar API through the [onstarjs2](https://github.com/BigThunderSR/OnStarJS) npm package.
 
+## Install
+
 ## Install as an agent skill
+
+Prerequisite: Node.js 22.20 or later.
 
 This repository contains an Agent Skill at the repository root (`SKILL.md`). Install it into Hermes Agent with the Vercel Skills CLI:
 
